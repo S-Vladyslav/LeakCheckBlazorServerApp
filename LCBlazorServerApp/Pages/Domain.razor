@@ -1,0 +1,95 @@
+﻿@page "/domain"
+
+<PageTitle>Domain check</PageTitle>
+
+@using LCBlazorServerApp.Data;
+@using DataAccess.Context;
+@using DataAccess.Interfaces;
+@using DataAccess;
+@using LCBlazorServerApp;
+@using DataAccess.Models;
+@using DataAccess.Services;
+
+<h1>Domain check</h1>
+
+<input type="text" @bind="target" />
+<button class="btn btn-primary" @onclick="@Check">Check</button>
+
+@if (!LeakListForOutPut.Any() && !clicked && !loaded)
+{
+    <p><em>Enter domain and click button</em></p>
+}
+else if (!LeakListForOutPut.Any() && clicked && !loaded)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!LeakListForOutPut.Any() && clicked && loaded)
+{
+    <p><em>No Leaks</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Login</th>
+                <th>Password</th>
+                <th>Last breach</th>
+                <th>Source</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var leakLine in LeakListForOutPut)
+            {
+                <tr>
+                    <td>@leakLine.EmailAddress</td>
+                    <td>@leakLine.Password</td>
+                    <td>@leakLine.LastBreach</td>
+                    <td>@leakLine.Source</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string? target;
+    private IConfiguration? Configuration;
+    private List<DomainLeak> LeakList = new List<DomainLeak>();
+    private List<DomainLeak> LeakListForOutPut = new List<DomainLeak>();
+
+    private bool clicked = false;
+    private bool loaded = false;
+
+    private async void Check()
+    {
+        clicked = true;
+
+        if (target == null)
+        {
+            clicked = false;
+            return;
+        }
+
+        await Task.Run(() => {
+
+            LeakList = LeakChecker.WeLeakInfoGetResults<DomainLeak>("domain", target);
+
+            var domainLeakService = new DomainLeakService();
+            var uOW = new UnitOfWorkFactory();
+
+            uOW.SetConnectionString(ConnectionConfiguration.ConnectionString);
+            domainLeakService.SetUnitOfWorkFactory(uOW);
+
+            domainLeakService.AddDomainLeaks(LeakList);
+            LeakListForOutPut = domainLeakService.GetDomainLeaksByDomain(target);
+
+            loaded = true;
+
+            InvokeAsync(() =>
+            {
+                StateHasChanged();
+            });
+        });
+    }
+}
